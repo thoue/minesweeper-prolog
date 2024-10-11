@@ -1,4 +1,4 @@
-% Ci-dessous ce trouve un modèle de la carte hardcoder
+% Ci-dessous ce trouve un modèle de la carte hardcodée
 /*    
 
     11 # # # # # # # # # # #
