@@ -28,6 +28,8 @@
 :- dynamic fruit_points/1.
 :- dynamic fruit_round/1.
 :- dynamic total_candy/1.
+:- dynamic tree_node/2.
+:- dynamic max_tree_depth/1.
 
 type(X, Y, wall) :- wall(X, Y), !.
 type(X, Y, fruit) :- fruit(X, Y), !.
@@ -216,10 +218,14 @@ handle_input(46) :- quit(46), !.
 handle_input(_) :- get_user_move.
 
 get_ai_move :-
-  writeln(' '),
-  writeln('AI is too stupid to move at the moment...').
+  %make_tree(alpha, 0),
+  !.
 
-get_fruit_move:-
+make_tree(alpha, Depth) :-
+  max_tree_depth(MaxDepth),
+  Depth < MaxDepth.
+  
+get_fruit_move :-
   fruit_alive(FruitAlive),
   fruit_round(FruitRound),
   round(Round),
@@ -240,7 +246,15 @@ move_fruit(Direction, X, Y) :-
   Type \= alpha,
   Type \= beta,
   retract(fruit(X, Y)),
-  assert(fruit(X1, Y1)).
+  assert(fruit(X1, Y1)),
+  !.
+
+move_fruit(Direction, X, Y) :- 
+  next_fruit_position(Direction, X, Y, X1, Y1),
+  type(X1, Y1, Type),
+  Type \= free,
+  Direction1 is mod(Direction + 1, 4),
+  move_fruit(Direction1, X, Y).
 
 next_fruit_position(0, X, Y, X, Y1) :- Y1 is Y + 1.
 next_fruit_position(1, X, Y, X1, Y) :- X1 is X + 1.
@@ -330,6 +344,9 @@ wall(9, 4).
 % Set initial points
 alpha_points(0).
 beta_points(0).
+
+% Set max tree depth for alpha-beta
+max_tree_depth(10). % With 10, the ai will look 4 rounds ahead with a fruit_round of 2
 
 % Set fruit points
 fruit_points(10).
