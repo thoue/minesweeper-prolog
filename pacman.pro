@@ -165,11 +165,12 @@ clear_map :-
   retractall(alpha_pos(_, _)),
   retractall(beta_pos(_, _)).
 
-startRound :-
+startGame :-
   round(R),
   startRound(R).
 
 startRound(R) :- 
+  show_map,
   write('Round '),
   write(R),
   write(' starts! '),
@@ -189,11 +190,14 @@ startRound(R) :-
   get_user_move,
   get_ai_move,
   get_fruit_move,
-  show_map,
+
   R1 is R + 1,
   retract(round(R)),
   assert(round(R1)),
+  clear_screen,
   startRound(R1).
+
+clear_screen :- write('\e[H\e[2J').
 
 quit(113) :- writeln('Quitting...'), halt.
 quit(46) :- writeln('Quitting...'), halt.
@@ -319,9 +323,9 @@ wall(7, 4).
 wall(8, 4).
 wall(9, 4).
 
+:- clear_screen.
 :- generate_walls.
 :- generate_candies.
-:- show_map.
 
 % Set initial points
 alpha_points(0).
@@ -331,9 +335,6 @@ beta_points(0).
 fruit_points(10).
 fruit_round(2).
 
-% Set total candy
-findall(_, candy(_, _), L),
-
 % Start the first round
 round(1).
-:- startRound.
+:- startGame.
