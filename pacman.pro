@@ -235,7 +235,7 @@ get_ai_move :-
   % Start tracking node id
   retractall(next_node_id(_)),
   assert(next_node_id(2)),
-  add_children_node(alpha, 2, 1, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
+  add_children_node(alpha, 2, 1),
 
   % Print all tree nodes
   print_all_tree_nodes,
@@ -250,17 +250,18 @@ print_all_tree_nodes :-
   writeln(TreeNodes).
 
 
-add_children_node(Entity, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY) :-
+add_children_node(Entity, Depth, ParentId) :-
   max_tree_depth(MaxTreeDepth),
   Depth < MaxTreeDepth,
-  add_child_node(up, Entity, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
-  add_child_node(right, Entity, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
-  add_child_node(down, Entity, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
-  add_child_node(left, Entity, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY).
-add_children_node(_, _, _, _, _, _, _, _, _) :- 
+  add_child_node(up, Entity, Depth, ParentId),
+  add_child_node(right, Entity, Depth, ParentId),
+  add_child_node(down, Entity, Depth, ParentId),
+  add_child_node(left, Entity, Depth, ParentId).
+add_children_node(_, _, _) :- !.
   !.
 
-add_child_node(Direction, alpha, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY) :-
+add_child_node(Direction, alpha, Depth, ParentId) :-
+  tree_node(_, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
   next_player_position(Direction, AlphaX, AlphaY, X1, Y1),
   type(X1, Y1, Type),
   Type \= wall,
@@ -272,25 +273,27 @@ add_child_node(Direction, alpha, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, 
   NodeId1 is NodeId + 1,
   assert(next_node_id(NodeId1)),
   Depth1 is Depth + 1,
-  add_children_node(beta, Depth1, NodeId, X1, Y1, BetaX, BetaY, FruitX1, FruitY1),
+  add_children_node(beta, Depth1, NodeId),
   !.
-add_child_node(Direction, beta, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY) :-
+add_child_node(Direction, beta, Depth, ParentId) :-
+  tree_node(_, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
   next_player_position(Direction, BetaX, BetaY, X1, Y1),
   type(X1, Y1, Type),
   Type \= wall,
   Type \= alpha,
   next_node_id(NodeId),
-  fruit_alive_in_tree(AlphaX, AlphaY, FruitX, FruitY, FruitX1, FruitY1),
+  fruit_alive_in_tree(X1, Y1, FruitX, FruitY, FruitX1, FruitY1),
   assert(tree_node(ParentId, NodeId, AlphaX, AlphaY, X1, Y1, FruitX1, FruitY1)),
   retract(next_node_id(NodeId)),
   NodeId1 is NodeId + 1,
   assert(next_node_id(NodeId1)),
 
   Depth1 is Depth + 1,
-  add_children_node(fruit, Depth1, NodeId, AlphaX, AlphaY, X1, Y1, FruitX1, FruitY1),
+  add_children_node(fruit, Depth1, NodeId),
   !.
 
-add_child_node(Direction, fruit, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY) :-
+add_child_node(Direction, fruit, Depth, ParentId) :-
+  tree_node(_, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
   FruitX > -1,
   FruitY > -1,
   fruit_next_moving_depth(FruitMovingNextMovingDepth),
@@ -316,14 +319,15 @@ add_child_node(Direction, fruit, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, 
 
   % Update Depth
   Depth1 is Depth + 1,
-  add_children_node(alpha, Depth1, NodeId, AlphaX, AlphaY, BetaX, BetaY, X1, Y1),
+  add_children_node(alpha, Depth1, NodeId),
   !.
 
-add_child_node(_, fruit, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY) :-
+add_child_node(_, fruit, Depth, ParentId) :-
+  tree_node(_, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
   add_children_node(alpha, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
   !.
 
-add_child_node(_, _, _, _, _, _, _, _, _, _) :- !.
+add_child_node(_, _, _, _) :- !.
 
 fruit_alive_in_tree(PlayerX, PlayerY, FruitX, FruitY, FruitX1, FruitY1) :-
   PlayerX == FruitX,
