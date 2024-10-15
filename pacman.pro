@@ -258,7 +258,6 @@ add_children_node(Entity, Depth, ParentId) :-
   add_child_node(down, Entity, Depth, ParentId),
   add_child_node(left, Entity, Depth, ParentId).
 add_children_node(_, _, _) :- !.
-  !.
 
 add_child_node(Direction, alpha, Depth, ParentId) :-
   tree_node(_, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
