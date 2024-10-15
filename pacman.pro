@@ -322,8 +322,7 @@ add_child_node(Direction, fruit, Depth, ParentId) :-
   !.
 
 add_child_node(_, fruit, Depth, ParentId) :-
-  tree_node(_, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
-  add_children_node(alpha, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
+  add_children_node(alpha, Depth, ParentId),
   !.
 
 add_child_node(_, _, _, _) :- !.
@@ -436,7 +435,6 @@ eat_fruit(X, Y) :-
   assert(fruit_alive(0)),
   !.
 eat_fruit(_, _).
-
 
 % => EXECUTION STARTS HERE <=
 
