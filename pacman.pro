@@ -24,12 +24,15 @@
 :- dynamic round/1.
 :- dynamic alpha_points/1.
 :- dynamic beta_points/1.
+
 :- dynamic fruit_alive/1.
 :- dynamic fruit_points/1.
 :- dynamic fruit_round/1.
-:- dynamic total_candy/1.
-:- dynamic tree_node/2.
+
+:- dynamic tree_node/8. % ParentId, NodeId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY, if fruit not alive, FruitX and FruitY are -1
 :- dynamic max_tree_depth/1.
+:- dynamic next_node_id/1.
+:- dynamic fruit_depth/1.
 
 type(X, Y, wall) :- wall(X, Y), !.
 type(X, Y, fruit) :- fruit(X, Y), !.
@@ -196,10 +199,7 @@ startRound(R) :-
   R1 is R + 1,
   retract(round(R)),
   assert(round(R1)),
-  clear_screen,
   startRound(R1).
-
-clear_screen :- write('\e[H\e[2J').
 
 quit(113) :- writeln('Quitting...'), halt.
 quit(46) :- writeln('Quitting...'), halt.
@@ -209,22 +209,132 @@ get_user_move :-
   get_single_char(Input),
   handle_input(Input).
 
-handle_input(119) :- move_validation(up), !.
-handle_input(97) :- move_validation(left), !.
-handle_input(115) :- move_validation(down), !.
-handle_input(100) :- move_validation(right), !.
+handle_input(119) :- beta_move(up), !.
+handle_input(97) :- beta_move(left), !.
+handle_input(115) :- beta_move(down), !.
+handle_input(100) :- beta_move(right), !.
 handle_input(113) :- quit(113), !.
 handle_input(46) :- quit(46), !.
 handle_input(_) :- get_user_move.
 
 get_ai_move :-
-  %make_tree(alpha, 0),
+  % Set root node
+  retractall(tree_node(_, _, _, _, _, _, _, _)),
+  alpha_pos(AlphaX, AlphaY),
+  beta_pos(BetaX, BetaY),
+  fruit(FruitX, FruitY),
+  assert(tree_node(0, 1, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY)),
+
+  % Set fruit next moving depth
+  fruit_round(FruitRound),
+  round(Round),
+  FruitMovingNextMovingRound is mod(Round, FruitRound),
+  FruitMovingNextMovingDepth is FruitMovingNextMovingRound * 2 + 3,
+  assert(fruit_next_moving_depth(FruitMovingNextMovingDepth)),
+
+  % Start tracking node id
+  retractall(next_node_id(_)),
+  assert(next_node_id(2)),
+  add_children_node(alpha, 2, 1, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
+
+  % Print all tree nodes
+  print_all_tree_nodes,
   !.
 
-make_tree(alpha, Depth) :-
-  max_tree_depth(MaxDepth),
-  Depth < MaxDepth.
-  
+% Define the print_all_tree_nodes/0 predicate
+print_all_tree_nodes :-
+  findall(tree_node(ParentId, NodeId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY), 
+          tree_node(ParentId, NodeId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY), 
+          TreeNodes),
+  writeln('Tree nodes:'),
+  writeln(TreeNodes).
+
+
+add_children_node(Entity, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY) :-
+  max_tree_depth(MaxTreeDepth),
+  Depth < MaxTreeDepth,
+  add_child_node(up, Entity, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
+  add_child_node(right, Entity, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
+  add_child_node(down, Entity, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
+  add_child_node(left, Entity, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY).
+add_children_node(_, _, _, _, _, _, _, _, _) :- 
+  !.
+
+add_child_node(Direction, alpha, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY) :-
+  next_player_position(Direction, AlphaX, AlphaY, X1, Y1),
+  type(X1, Y1, Type),
+  Type \= wall,
+  Type \= beta,
+  next_node_id(NodeId),
+  fruit_alive_in_tree(X1, Y1, FruitX, FruitY, FruitX1, FruitY1),
+  assert(tree_node(ParentId, NodeId, X1, Y1, BetaX, BetaY, FruitX1, FruitY1)),
+  retract(next_node_id(NodeId)),
+  NodeId1 is NodeId + 1,
+  assert(next_node_id(NodeId1)),
+  Depth1 is Depth + 1,
+  add_children_node(beta, Depth1, NodeId, X1, Y1, BetaX, BetaY, FruitX1, FruitY1),
+  !.
+add_child_node(Direction, beta, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY) :-
+  next_player_position(Direction, BetaX, BetaY, X1, Y1),
+  type(X1, Y1, Type),
+  Type \= wall,
+  Type \= alpha,
+  next_node_id(NodeId),
+  fruit_alive_in_tree(AlphaX, AlphaY, FruitX, FruitY, FruitX1, FruitY1),
+  assert(tree_node(ParentId, NodeId, AlphaX, AlphaY, X1, Y1, FruitX1, FruitY1)),
+  retract(next_node_id(NodeId)),
+  NodeId1 is NodeId + 1,
+  assert(next_node_id(NodeId1)),
+
+  Depth1 is Depth + 1,
+  add_children_node(fruit, Depth1, NodeId, AlphaX, AlphaY, X1, Y1, FruitX1, FruitY1),
+  !.
+
+add_child_node(Direction, fruit, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY) :-
+  FruitX > -1,
+  FruitY > -1,
+  fruit_next_moving_depth(FruitMovingNextMovingDepth),
+  Depth == FruitMovingNextMovingDepth,
+  next_fruit_position(Direction, FruitX, FruitY, X1, Y1),
+  type(X1, Y1, Type),
+  Type \= wall,
+  Type \= alpha,
+  Type \= beta,
+  next_node_id(NodeId),
+  assert(tree_node(ParentId, NodeId, AlphaX, AlphaY, BetaX, BetaY, X1, Y1)),
+
+  % Set next moving depth
+  fruit_round(FruitRound),
+  FruitMovingNextMovingDepth1 is FruitMovingNextMovingDepth + 2 * FruitRound + 1,
+  retract(fruit_next_moving_depth(FruitMovingNextMovingDepth)),
+  assert(fruit_next_moving_depth(FruitMovingNextMovingDepth1)),
+
+  % Set next node id
+  retract(next_node_id(NodeId)),
+  NodeId1 is NodeId + 1,
+  assert(next_node_id(NodeId1)),
+
+  % Update Depth
+  Depth1 is Depth + 1,
+  add_children_node(alpha, Depth1, NodeId, AlphaX, AlphaY, BetaX, BetaY, X1, Y1),
+  !.
+
+add_child_node(_, fruit, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY) :-
+  add_children_node(alpha, Depth, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY),
+  !.
+
+add_child_node(_, _, _, _, _, _, _, _, _, _) :- !.
+
+fruit_alive_in_tree(PlayerX, PlayerY, FruitX, FruitY, FruitX1, FruitY1) :-
+  PlayerX == FruitX,
+  PlayerY == FruitY,
+  FruitX1 is -1,
+  FruitY1 is -1,
+  !.
+fruit_alive_in_tree(_, _, FruitX, FruitY, FruitX, FruitY) :- !.
+
+% Logic to handle fruit movement
+
 get_fruit_move :-
   fruit_alive(FruitAlive),
   fruit_round(FruitRound),
@@ -261,9 +371,10 @@ next_fruit_position(1, X, Y, X1, Y) :- X1 is X + 1.
 next_fruit_position(2, X, Y, X, Y1) :- Y1 is Y - 1.
 next_fruit_position(3, X, Y, X1, Y) :- X1 is X - 1.
 
-move_validation(Direction) :-
+% Logic to hanlde movement for alpha and beta
+beta_move(Direction) :-
   beta_pos(X, Y),
-  get_new_position(Direction, X, Y, X1, Y1),
+  next_player_position(Direction, X, Y, X1, Y1),
   type(X1, Y1, Type),
   Type \= wall,
   Type \= beta,
@@ -271,11 +382,34 @@ move_validation(Direction) :-
   eat_candy(X1, Y1),
   eat_fruit(X1, Y1),
   retract(beta_pos(X, Y)),
-  assert(beta_pos(X1, Y1)).
+  assert(beta_pos(X1, Y1)),
+  !.
+beta_move(_) :-
+  get_user_move,
+  !.
 
-move_validation(_) :-
-  get_user_move.
+alpha_move(Direction) :-
+  alpha_pos(X, Y),
+  next_player_position(Direction, X, Y, X1, Y1),
+  type(X1, Y1, Type),
+  Type \= wall,
+  Type \= alpha,
+  Type \= beta,
+  eat_candy(X1, Y1),
+  eat_fruit(X1, Y1),
+  retract(alpha_pos(X, Y)),
+  assert(alpha_pos(X1, Y1)),
+  !.
+alpha_move(_) :-
+  get_user_move,
+  !.
 
+next_player_position(up, X, Y, X, Y1) :- Y1 is Y + 1.
+next_player_position(down, X, Y, X, Y1) :- Y1 is Y - 1.
+next_player_position(left, X, Y, X1, Y) :- X1 is X - 1.
+next_player_position(right, X, Y, X1, Y) :- X1 is X + 1.
+
+% Logic to handle eating of candy and fruit
 eat_candy(X, Y) :-
   candy(X, Y),
   retract(candy(X, Y)),
@@ -289,6 +423,7 @@ eat_candy(_, _).
 eat_fruit(X, Y) :-
   fruit(X, Y),
   retract(fruit(X, Y)),
+  assert(fruit(-1, -1)),
   beta_points(P),
   fruit_points(FP),
   P1 is P + FP,
@@ -299,10 +434,6 @@ eat_fruit(X, Y) :-
   !.
 eat_fruit(_, _).
 
-get_new_position(up, X, Y, X, Y1) :- Y1 is Y + 1.
-get_new_position(down, X, Y, X, Y1) :- Y1 is Y - 1.
-get_new_position(left, X, Y, X1, Y) :- X1 is X - 1.
-get_new_position(right, X, Y, X1, Y) :- X1 is X + 1.
 
 % => EXECUTION STARTS HERE <=
 
@@ -337,7 +468,6 @@ wall(7, 4).
 wall(8, 4).
 wall(9, 4).
 
-:- clear_screen.
 :- generate_walls.
 :- generate_candies.
 
@@ -346,7 +476,7 @@ alpha_points(0).
 beta_points(0).
 
 % Set max tree depth for alpha-beta
-max_tree_depth(10). % With 10, the ai will look 4 rounds ahead with a fruit_round of 2
+max_tree_depth(5). % With 10, the ai will look 4 rounds ahead with a fruit_round of 2
 
 % Set fruit points
 fruit_points(10).
