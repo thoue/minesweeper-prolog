@@ -244,6 +244,15 @@ handle_input(119) :- beta_move(0), !.
 handle_input(100) :- beta_move(1), !.
 handle_input(115) :- beta_move(2), !.
 handle_input(97) :- beta_move(3), !.
+handle_input(122) :- 
+  % Print tree nodes
+  findall( 
+    tree_node(ParentId, NodeId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY, AvailableCandies, AlphaPoints, BetaPoints),
+    tree_node(ParentId, NodeId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY, AvailableCandies, AlphaPoints, BetaPoints),
+    Nodes
+  ),
+  writeln(Nodes),
+  get_user_move.
 handle_input(113) :- quit(113), !.
 handle_input(46) :- quit(46), !.
 handle_input(_) :- get_user_move.
@@ -256,8 +265,6 @@ get_ai_move :-
   fruit(FruitX, FruitY),
   alpha_points(AlphaPoints),
   beta_points(BetaPoints),
-  write('Alpha points: '), writeln(AlphaPoints),
-  write('Beta points: '), writeln(BetaPoints),
   findall(CandyX-CandyY, candy(CandyX, CandyY), AvailableCandies),
   assert(tree_node(0, 1, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY, AvailableCandies, AlphaPoints, BetaPoints)),
 
@@ -271,7 +278,7 @@ get_ai_move :-
   % Start tracking node id
   retractall(next_node_id(_)),
   assert(next_node_id(2)),
-  add_children_node(alpha, 2, 1, AlphaValue, Direction),
+  add_children_node(alpha, 2, 1, AlphaValue, Direction, -1000, 1000),
   write('Alpha value: '),
   writeln(AlphaValue),
   write('Alpha direction: '),
@@ -296,25 +303,69 @@ get_direction(_, RightValue, _, _, RightValue, Direction) :- Direction is 1, !.
 get_direction(_, _, DownValue, _, DownValue, Direction) :- Direction is 2, !.
 get_direction(_, _, _, LeftValue, LeftValue, Direction) :- Direction is 3, !.
 
-add_children_node(Entity, Depth, ParentId, NodeValue, Direction) :-
+update_alpha_beta(alpha, Alpha, Beta, Value, NewAlpha, Beta) :-
+  NewAlpha is max(Alpha, Value).
+
+update_alpha_beta(beta, Alpha, Beta, Value, Alpha, NewBeta) :-
+  NewBeta is min(Beta, Value).
+
+add_children_node(Entity, Depth, ParentId, NodeValue, Direction, Alpha, Beta) :-
+
+  Entity \= fruit,
+
+  % Initialise les valeurs d'évaluation des enfants
+  add_child_node(0, Entity, Depth, ParentId, UpValue, Alpha, Beta),
+  update_alpha_beta(Entity, Alpha, Beta, UpValue, Alpha1, Beta1),
+
+  (Alpha1 >= Beta1 -> NodeValue is Alpha1 ;
+    add_child_node(1, Entity, Depth, ParentId, RightValue, Alpha1, Beta1),
+    update_alpha_beta(Entity, Alpha1, Beta1, RightValue, Alpha2, Beta2),
+
+    (Alpha2 >= Beta2 -> NodeValue is Alpha2 ;
+      add_child_node(2, Entity, Depth, ParentId, DownValue, Alpha2, Beta2),
+      update_alpha_beta(Entity, Alpha2, Beta2, DownValue, Alpha3, Beta3),
+
+      (Alpha3 >= Beta3 -> NodeValue is Alpha3 ;
+        add_child_node(3, Entity, Depth, ParentId, LeftValue, Alpha3, Beta3),
+        get_node_value(Entity, UpValue, RightValue, DownValue, LeftValue, NodeValue),
+        get_direction(UpValue, RightValue, DownValue, LeftValue, NodeValue, Direction)
+      )
+    )
+  ),
+
+  % write('Entity: '),  writeln(Entity),
+  % write('Depth: '),   writeln(Depth),
+  % write('Alpha 1: '),   writeln(Alpha1),
+  % write('Beta 1: '),  writeln(Beta1),
+  % write('Alpha 2: '), writeln(Alpha2),
+  % write('Beta 2: '),  writeln(Beta2),
+  % write('Alpha 3: '), writeln(Alpha3),
+  % write('Beta 3: '),  writeln(Beta3),
+  % write('Node value: '), writeln(NodeValue),
+  % writeln(' '),
+  !.
+add_children_node(fruit, Depth, ParentId, NodeValue, Direction, Alpha, Beta) :-
+  random(0, 4, RandomDirection),
+  add_child_node(RandomDirection, fruit, Depth, ParentId, NodeValue, Alpha, Beta),
+  Direction is 0,
+  !.
+
+calculate_next_step(Entity, Depth, ParentId, NodeValue, Alpha, Beta, _, _) :-
   max_tree_depth(MaxTreeDepth),
   Depth < MaxTreeDepth,
-
-  add_child_node(0, Entity, Depth, ParentId, UpValue),
-  add_child_node(1, Entity, Depth, ParentId, RightValue),
-  add_child_node(2, Entity, Depth, ParentId, DownValue),
-  add_child_node(3, Entity, Depth, ParentId, LeftValue),
-
-  get_node_value(Entity, UpValue, RightValue, DownValue, LeftValue, NodeValue),
-  get_direction(UpValue, RightValue, DownValue, LeftValue, NodeValue, Direction).
-
-add_children_node(_, _, ParentId, NodeValue, _) :- 
-  tree_node(_, ParentId, _, _, _, _, _, _, _, AlphaPoints, BetaPoints),
+  add_children_node(Entity, Depth, ParentId, NodeValue, _, Alpha, Beta),
+  !.
+calculate_next_step(_, _, _, NodeValue, _, _, AlphaPoints, BetaPoints) :-
+  % write('Reached max depth for node: '), writeln(ParentId),
+  % write('Alpha points: '), writeln(AlphaPoints),
+  % write('Beta points: '), writeln(BetaPoints),
   NodeValue is AlphaPoints - BetaPoints,
+  % write('Node value: '), writeln(NodeValue),
+  % writeln(' '),
   !.
 
 % ADD ALPHA NODE
-add_child_node(Direction, alpha, Depth, ParentId, NodeValue) :-
+add_child_node(Direction, alpha, Depth, ParentId, NodeValue, Alpha, Beta) :-
 
   % Get the parent node informations
   tree_node(_, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY, AvailableCandies, AlphaPoints, BetaPoints),
@@ -325,7 +376,9 @@ add_child_node(Direction, alpha, Depth, ParentId, NodeValue) :-
   % Check if the next position is valid
   type(X1, Y1, Type),
   Type \= wall,
-  Type \= beta,
+  BetaX \= X1,
+  BetaY \= Y1,
+
   next_node_id(NodeId),
 
   % Calculate current state
@@ -339,18 +392,31 @@ add_child_node(Direction, alpha, Depth, ParentId, NodeValue) :-
   NodeId1 is NodeId + 1,
   assert(next_node_id(NodeId1)),
 
+  % write('Alpha node added for direction: '), writeln(Direction),
+  % write('NodeId: '), writeln(NodeId),
+  % write('Parent ID: '), writeln(ParentId),
+  % write('Next Cell Type: '), writeln(Type),
+  % write('Movement: '), write(AlphaX), write(' '), write(AlphaY), write(' -> '), write(X1), write(' '), writeln(Y1),
+  % write('Depth: '), writeln(Depth),
+  % write('Candy value: '), writeln(CandyValue),
+  % write('Fruit value: '), writeln(FruitValue),
+  % write('Old score Alpha: '), writeln(AlphaPoints),
+  % write('New score Alpha: '), writeln(AlphaPoints1),
+  % write('Beta score: '), writeln(BetaPoints),
+  % writeln(' '),
+
   % Update Depth
   Depth1 is Depth + 1,
 
-  % Add children of this node
-  add_children_node(fruit, Depth1, NodeId, ChildValue, _),
+  % Calculate next step
+  calculate_next_step(fruit, Depth1, NodeId, ChildValue, Alpha, Beta, AlphaPoints1, BetaPoints),
 
   % Calculate node value
   NodeValue is ChildValue,
   !.
 
 % ADD BETA NODE
-add_child_node(Direction, beta, Depth, ParentId, NodeValue) :-
+add_child_node(Direction, beta, Depth, ParentId, NodeValue, Alpha, Beta) :-
 
   % Get the parent node informations
   tree_node(_, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY, AvailableCandies, AlphaPoints, BetaPoints),
@@ -361,7 +427,10 @@ add_child_node(Direction, beta, Depth, ParentId, NodeValue) :-
   % Check if the next position is valid
   type(X1, Y1, Type),
   Type \= wall,
-  Type \= alpha,
+  AlphaX \= X1,
+  AlphaY \= Y1,
+
+  next_node_id(NodeId),
 
   % Calculate current state
   fruit_being_eaten_in_tree(X1, Y1, FruitX, FruitY, FruitX1, FruitY1, FruitValue),
@@ -374,18 +443,31 @@ add_child_node(Direction, beta, Depth, ParentId, NodeValue) :-
   NodeId1 is NodeId + 1,
   assert(next_node_id(NodeId1)),
 
-  % Update Depth
-  Depth1 is Depth + 1,
+  % write('Beta node added for direction: '), writeln(Direction),
+  % write('NodeId: '), writeln(NodeId),
+  % write('Parent ID: '), writeln(ParentId),
+  % write('Next Cell Type: '), writeln(Type),
+  % write('Movement: '), write(BetaX), write(' '), write(BetaY), write(' -> '), write(X1), write(' '), writeln(Y1),
+  % write('Depth: '), writeln(Depth),
+  % write('Candy value: '), writeln(CandyValue),
+  % write('Fruit value: '), writeln(FruitValue),
+  % write('Old score Beta: '), writeln(BetaPoints),
+  % write('New score Beta: '), writeln(BetaPoints1),
+  % write('Alpha score: '), writeln(AlphaPoints),
+  % writeln(' '),
 
-  % Add children of this node
-  add_children_node(beta, Depth1, NodeId, ChildValue, _),
+  % Update Depth
+  Depth1 is Depth + 1,  
+
+  % Calculate next step
+  calculate_next_step(alpha, Depth1, NodeId, ChildValue, Alpha, Beta, AlphaPoints, BetaPoints1),
 
   % Calculate node value
   NodeValue is ChildValue,
   !.
 
 % ADD FRUIT NODE
-add_child_node(Direction, fruit, Depth, ParentId, NodeValue) :-
+add_child_node(Direction, fruit, Depth, ParentId, NodeValue, Alpha, Beta) :-
   tree_node(_, ParentId, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY, AvailableCandies, AlphaPoints, BetaPoints),
   FruitX > -1,
   FruitY > -1,
@@ -415,25 +497,26 @@ add_child_node(Direction, fruit, Depth, ParentId, NodeValue) :-
 
   % Update Depth
   Depth1 is Depth + 1,
-  add_children_node(alpha, Depth1, NodeId, ChildValue, _),
+
+  % Calculate next step
+  calculate_next_step(beta, Depth1, NodeId, ChildValue, Alpha, Beta, AlphaPoints, BetaPoints),
 
   NodeValue is ChildValue,
   !.
 
-add_child_node(_, fruit, Depth, ParentId, NodeValue) :-
-  add_children_node(alpha, Depth, ParentId, NodeValue, _),
+add_child_node(_, fruit, Depth, ParentId, NodeValue, Alpha, Beta) :-
+  add_children_node(beta, Depth, ParentId, NodeValue, _, Alpha, Beta),
   !.
 
-add_child_node(_, alpha, _, _, NodeValue) :-
+add_child_node(_, alpha, _, _, NodeValue, _, _) :-
   NodeValue is -1000,
   !.
-add_child_node(_, beta, _, _, NodeValue) :- 
+add_child_node(_, beta, _, _, NodeValue, _, _) :- 
   NodeValue is 1000,
   !.
-add_child_node(_, fruit, _, _, NodeValue) :- 
+add_child_node(_, fruit, _, _, NodeValue, _, _) :- 
   NodeValue is -1000,
   !.
-
 
 % Calculate if fruit is alive in tree
 fruit_being_eaten_in_tree(PlayerX, PlayerY, FruitX, FruitY, FruitX1, FruitY1, FruitValue) :-
@@ -618,7 +701,7 @@ alpha_points(0).
 beta_points(0).
 
 % Set max tree depth for alpha-beta
-max_tree_depth(7).
+max_tree_depth(15).
 
 % Set fruit points
 fruit_points(10).
