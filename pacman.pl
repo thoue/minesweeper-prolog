@@ -43,16 +43,14 @@
                          0 1 2 3 4 5 6 7 8 9 0 1 2
 */
 
-
-
 :- dynamic wall/2.
 :- dynamic candy/2.
 :- dynamic fruit/2.
-:- dynamic alpha_pos/2.
-:- dynamic beta_pos/2.
+:- dynamic player_a_pos/2.
+:- dynamic player_b_pos/2.
 :- dynamic round/1.
-:- dynamic alpha_points/1.
-:- dynamic beta_points/1.
+:- dynamic player_a_points/1.
+:- dynamic player_b_points/1.
 
 :- dynamic fruit_alive/1.
 :- dynamic fruit_points/1.
@@ -214,8 +212,8 @@ startRound(R) :-
   writeln('Press Q to quit.'),
 
   % Show points
-  alpha_points(AP),
-  beta_points(BP),
+  player_a_points(AP),
+  player_b_points(BP),
   write('Alpha: '),
   write(AP),
   write(' points, Beta: '),
@@ -223,7 +221,7 @@ startRound(R) :-
   writeln(' points.'),
   writeln('Press W, A, S or D to move up, left, down or right respectively.'),
   
-  get_user_move,
+  get_player_b_move,
   get_ai_move,
   get_fruit_move,
 
@@ -235,15 +233,15 @@ startRound(R) :-
 quit(113) :- writeln('Quitting...'), halt.
 quit(46) :- writeln('Quitting...'), halt.
 
-get_user_move :-
+get_player_b_move :-
   % read input and put it in the direction variable
   get_single_char(Input),
   handle_input(Input).
 
-handle_input(119) :- beta_move(0), !.
-handle_input(100) :- beta_move(1), !.
-handle_input(115) :- beta_move(2), !.
-handle_input(97) :- beta_move(3), !.
+handle_input(119) :- move_player_b(0), !.
+handle_input(100) :- move_player_b(1), !.
+handle_input(115) :- move_player_b(2), !.
+handle_input(97) :- move_player_b(3), !.
 handle_input(122) :- 
   % Print tree nodes
   findall( 
@@ -252,10 +250,10 @@ handle_input(122) :-
     Nodes
   ),
   writeln(Nodes),
-  get_user_move.
+  get_player_b_move.
 handle_input(113) :- quit(113), !.
 handle_input(46) :- quit(46), !.
-handle_input(_) :- get_user_move.
+handle_input(_) :- get_player_b_move.
 
 get_ai_move :-
   % Set root node
@@ -263,8 +261,8 @@ get_ai_move :-
   alpha_pos(AlphaX, AlphaY),
   beta_pos(BetaX, BetaY),
   fruit(FruitX, FruitY),
-  alpha_points(AlphaPoints),
-  beta_points(BetaPoints),
+  player_a_points(AlphaPoints),
+  player_b_points(BetaPoints),
   findall(CandyX-CandyY, candy(CandyX, CandyY), AvailableCandies),
   assert(tree_node(0, 1, AlphaX, AlphaY, BetaX, BetaY, FruitX, FruitY, AvailableCandies, AlphaPoints, BetaPoints)),
 
@@ -279,9 +277,9 @@ get_ai_move :-
   retractall(next_node_id(_)),
   assert(next_node_id(2)),
   add_children_node(alpha, 2, 1, AlphaValue, Direction, -1000, 1000),
-  write('Alpha value: '),
+  write('Player A Value: '),
   writeln(AlphaValue),
-  write('Alpha direction: '),
+  write('Player A Value: '),
   writeln(Direction),
 
   % Move alpha in the direction
@@ -409,7 +407,7 @@ add_child_node(Direction, alpha, Depth, ParentId, NodeValue, Alpha, Beta) :-
   Depth1 is Depth + 1,
 
   % Calculate next step
-  calculate_next_step(fruit, Depth1, NodeId, ChildValue, Alpha, Beta, AlphaPoints1, BetaPoints),
+  calculate_next_step(beta, Depth1, NodeId, ChildValue, Alpha, Beta, AlphaPoints1, BetaPoints),
 
   % Calculate node value
   NodeValue is ChildValue,
@@ -577,7 +575,7 @@ next_fruit_position(2, X, Y, X, Y1) :- Y1 is Y - 1.
 next_fruit_position(3, X, Y, X1, Y) :- X1 is X - 1.
 
 % Logic to hanlde movement for alpha and beta
-beta_move(Direction) :-
+move_player_b(Direction) :-
   beta_pos(X, Y),
   next_player_position(Direction, X, Y, X1, Y1),
   type(X1, Y1, Type),
@@ -589,8 +587,8 @@ beta_move(Direction) :-
   retract(beta_pos(X, Y)),
   assert(beta_pos(X1, Y1)),
   !.
-beta_move(_) :-
-  get_user_move,
+move_player_b(_) :-
+  get_player_b_move,
   !.
 
 alpha_move(Direction) :-
@@ -615,10 +613,10 @@ next_player_position(3, X, Y, X1, Y) :- X1 is X - 1.
 beta_eat_candy(X, Y) :-
   candy(X, Y),
   retract(candy(X, Y)),
-  beta_points(P),
+  player_b_points(P),
   P1 is P + 1,
-  retract(beta_points(P)),
-  assert(beta_points(P1)),
+  retract(player_b_points(P)),
+  assert(player_b_points(P1)),
   !.
 beta_eat_candy(_, _).
 
@@ -626,11 +624,11 @@ beta_eat_fruit(X, Y) :-
   fruit(X, Y),
   retract(fruit(X, Y)),
   assert(fruit(-1, -1)),
-  beta_points(P),
+  player_b_points(P),
   fruit_points(FP),
   P1 is P + FP,
-  retract(beta_points(P)),
-  assert(beta_points(P1)),
+  retract(player_b_points(P)),
+  assert(player_b_points(P1)),
   retract(fruit_alive(_)),
   assert(fruit_alive(0)),
   !.
@@ -639,10 +637,10 @@ beta_eat_fruit(_, _).
 alpha_eat_candy(X, Y) :-
   candy(X, Y),
   retract(candy(X, Y)),
-  alpha_points(P),
+  player_a_points(P),
   P1 is P + 1,
-  retract(alpha_points(P)),
-  assert(alpha_points(P1)),
+  retract(player_a_points(P)),
+  assert(player_a_points(P1)),
   !.
 alpha_eat_candy(_, _).
 
@@ -650,11 +648,11 @@ alpha_eat_fruit(X, Y) :-
   fruit(X, Y),
   retract(fruit(X, Y)),
   assert(fruit(-1, -1)),
-  alpha_points(P),
+  player_a_points(P),
   fruit_points(FP),
   P1 is P + FP,
-  retract(alpha_points(P)),
-  assert(alpha_points(P1)),
+  retract(player_a_points(P)),
+  assert(player_a_points(P1)),
   retract(fruit_alive(_)),
   assert(fruit_alive(0)),
   !.
@@ -665,40 +663,47 @@ alpha_eat_fruit(_, _).
 :- clear_map.
 
 % Map dimensions
-width(11).
-height(11).
+width(9).
+height(9).
 
 % Starting positions
-alpha_pos(2, 10).
-beta_pos(10, 2).
+% alpha_pos(2, 10).
+% beta_pos(10, 2).
+alpha_pos(2, 8).
+beta_pos(8, 2).
 
 % Fruit position
-fruit(6, 6).
+fruit(5, 5).
 fruit_alive(1).
 
 % Interior walls
-wall(3, 8).
-wall(4, 8).
-wall(5, 8).
-wall(6, 8).
-wall(7, 8).
-wall(8, 8).
-wall(9, 8).
+wall(3, 6).
+wall(4, 6).
+wall(5, 6).
+wall(6, 6).
+wall(7, 6).
+% wall(3, 8).
+% wall(4, 8).
+% wall(5, 8).
+% wall(6, 8).
+% wall(7, 8).
+% wall(8, 8).
+% wall(9, 8).
 
 wall(3, 4).
 wall(4, 4).
 wall(5, 4).
 wall(6, 4).
 wall(7, 4).
-wall(8, 4).
-wall(9, 4).
+% wall(8, 4).
+% wall(9, 4).
 
 :- generate_walls.
 :- generate_candies.
 
 % Set initial points
-alpha_points(0).
-beta_points(0).
+player_a_points(0).
+player_b_points(0).
 
 % Set max tree depth for alpha-beta
 max_tree_depth(15).
