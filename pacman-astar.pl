@@ -241,7 +241,7 @@ show_cell(C, R) :-
   C1 is C + 1,
   show_cell(C1, R).
 
-write_cell(wall) :- write('\033[1;40m   \033[0m').
+write_cell(wall) :- write('\033[1;40m # \033[0m').
 write_cell(player_a) :- write('\033[1;32m A \033[0m').
 write_cell(player_b) :- write('\033[1;31m B \033[0m').
 write_cell(fruit) :- write('\033[1;34m ♦ \033[0m').
