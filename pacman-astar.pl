@@ -399,6 +399,11 @@ start_ai_vs_ai_round(R) :-
     % On gère les mouvements du fruit
     fruit_turn,
 
+    % Si l'utilisateur appuie sur q, on quitte le programme
+    get_non_blocking_char(Char),
+    movement_key_translation(Char, PlayerAction),
+    try_quit(PlayerAction),
+
     player_a_score(ScoreA), player_b_score(ScoreB),
     total_points(TotalPoints),
     HalfTotalPoints is TotalPoints / 2,
