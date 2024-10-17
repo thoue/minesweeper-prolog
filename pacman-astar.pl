@@ -242,11 +242,11 @@ show_cell(C, R) :-
   show_cell(C1, R).
 
 write_cell(wall) :- write('\033[1;40m # \033[0m').
-write_cell(player_a) :- write('\033[1;32m A \033[0m').
-write_cell(player_b) :- write('\033[1;31m B \033[0m').
-write_cell(fruit) :- write('\033[1;34m O \033[0m').
-write_cell(candy) :- write('\033[1;33m . \033[0m').
-write_cell(free) :- write('   ').
+write_cell(player_a) :- write('\033[1;42m A \033[0m').
+write_cell(player_b) :- write('\033[1;41m B \033[0m').
+write_cell(fruit) :- write('\033[1;44m O \033[0m').
+write_cell(candy) :- write('\033[1;40m . \033[0m').
+write_cell(free) :- write('\033[1;40m   \033[0m').
 
 %  ================== (FIN) FONCTIONS DE LA MAP ==================
 
