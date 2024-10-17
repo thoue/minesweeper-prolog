@@ -244,8 +244,8 @@ show_cell(C, R) :-
 write_cell(wall) :- write('\033[1;40m # \033[0m').
 write_cell(player_a) :- write('\033[1;32m A \033[0m').
 write_cell(player_b) :- write('\033[1;31m B \033[0m').
-write_cell(fruit) :- write('\033[1;34m ♦ \033[0m').
-write_cell(candy) :- write('\033[1;33m · \033[0m').
+write_cell(fruit) :- write('\033[1;34m O \033[0m').
+write_cell(candy) :- write('\033[1;33m . \033[0m').
 write_cell(free) :- write('   ').
 
 %  ================== (FIN) FONCTIONS DE LA MAP ==================
@@ -399,7 +399,6 @@ start_ai_vs_ai_round(R) :-
     % On gère les mouvements du fruit
     fruit_turn,
 
-    nl,
     player_a_score(ScoreA), player_b_score(ScoreB),
     total_points(TotalPoints),
     HalfTotalPoints is TotalPoints / 2,
