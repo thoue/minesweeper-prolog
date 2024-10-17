@@ -3,13 +3,21 @@
 :- dynamic fruit/2.
 :- dynamic player_a_pos/2.
 :- dynamic player_b_pos/2.
-:- dynamic fruit_alive/1.
+:- dynamic fruit_eaten/1.
+:- dynamic fruit_value/1.
 
 :- dynamic player_a_score/1.
 :- dynamic player_b_score/1.
 
 :- dynamic next_node_id/1.
-:- dynamic node/4.
+:- dynamic node/6. % X, Y, G, F, ParentX, ParentY
+
+:- dynamic player_a_cluster/1.
+:- dynamic player_a_target_candy/2.
+
+:- dynamic player_b_cluster/1.
+:- dynamic player_b_target_candy/2.
+
 
 % Clear tous les faits de la map
 clear_map :-
@@ -23,17 +31,52 @@ clear_map :-
 :- clear_map.
 
 %  ================== FONCTIONS DE LA MAP ==================
+/*
 
+*/
 % Interior walls
-wall(3, 8).
+wall(4, 5).
+wall(4, 6).
+wall(4, 7).
 wall(4, 8).
-wall(5, 8).
-wall(6, 8).
-wall(7, 8).
-wall(8, 8).
-wall(9, 8).
+wall(4, 9).
 
-wall(3, 4).
+wall(4, 13).
+wall(4, 14).
+wall(4, 15).
+wall(4, 16).
+wall(4, 17).
+
+
+wall(4, 18).
+wall(5, 18).
+wall(6, 18).
+wall(7, 18).
+wall(8, 18).
+wall(9, 18).
+
+wall(13, 18).
+wall(14, 18).
+wall(15, 18).
+wall(16, 18).
+wall(17, 18).
+wall(18, 18).
+
+
+wall(18, 9).
+wall(18, 8).
+wall(18, 7).
+wall(18, 6).
+wall(18, 5).
+wall(18, 4).
+
+wall(18, 17).
+wall(18, 16).
+wall(18, 15).
+wall(18, 14).
+wall(18, 13).
+
+
 wall(4, 4).
 wall(5, 4).
 wall(6, 4).
@@ -41,17 +84,26 @@ wall(7, 4).
 wall(8, 4).
 wall(9, 4).
 
+wall(12, 4).
+wall(13, 4).
+wall(14, 4).
+wall(15, 4).
+wall(16, 4).
+wall(17, 4).
+
+
 % Map dimensions
-width(11).
-height(11).
+width(21).
+height(21).
 
 % Starting positions
-player_a_pos(2, 10).
-player_b_pos(10, 2).
+player_a_pos(2, 20).
+player_b_pos(20, 2).
 
 % Fruit position
-fruit(6, 6).
-fruit_alive(1).
+fruit(11, 11).
+fruit_eaten(0).
+fruit_value(10).
 
 type(X, Y, wall) :- wall(X, Y), !.
 type(X, Y, fruit) :- fruit(X, Y), !.
@@ -181,7 +233,7 @@ write_cell(wall) :- write('\033[1;40m   \033[0m').
 write_cell(player_a) :- write('\033[1;32m A \033[0m').
 write_cell(player_b) :- write('\033[1;31m B \033[0m').
 write_cell(fruit) :- write('\033[1;33m F \033[0m').
-write_cell(candy) :- write('\033[1;33m . \033[0m').
+write_cell(candy) :- write('\033[1;33m · \033[0m').
 write_cell(free) :- write('   ').
 
 % Node generation
@@ -198,7 +250,7 @@ generate_map_nodes_row(H) :-
 
 generate_node(0, _) :- !.
 generate_node(W, H) :-
-  assert(node(W, H, 0, 0)),
+  assert(node(W, H, 0, 0, 0, 0)),
   W1 is W - 1,
   generate_node(W1, H).
   
@@ -228,6 +280,12 @@ move_translate(up, 0).
 move_translate(left, 1).
 move_translate(down, 2).
 move_translate(right, 3).
+
+player_a_cluster([]).
+player_a_target_candy(-1, -1).
+
+player_b_cluster([]).
+player_b_target_candy(-1, -1).
 
 % ===== START ET QUIT =====
 % On commence le programme ici
@@ -299,8 +357,7 @@ start_round(R) :-
     human_turn,
 
     % On gère les mouvements de l'IA
-    calculate_ai_move(player_a, AIMove),
-    writeln('L\'IA a joué : '), writeln(AIMove),
+    ai_turn(player_a),
 
     R1 is R + 1,
     start_round(R1).
@@ -311,6 +368,14 @@ human_turn :-
     try_quit(PlayerAction), % On vérifie si l'utilisateur veut quitter, si oui, on quitte le programme
     player_b_pos(X, Y),
     validate_player_move(X, Y, PlayerAction, player_b).
+
+ai_turn(Player) :-
+    get_player_position(Player, X, Y),
+    calculate_ai_move(Player, AIMove),
+    validate_player_move(X, Y, AIMove, Player).
+
+get_player_position(player_a, X, Y) :- player_a_pos(X, Y).
+get_player_position(player_b, X, Y) :- player_b_pos(X, Y).
 
 % Valide et effectue le mouvement du joueur
 validate_player_move(X, Y, up, Player) :-
@@ -356,33 +421,61 @@ check_for_candy(player_a, X, Y) :-
     player_a_score(Score),
     NewScore is Score + 1,
     retract(player_a_score(_)),
-    assert(player_a_score(NewScore)).
+    assert(player_a_score(NewScore)),
+
+    player_a_target_candy(TargetX, TargetY),
+    
+    (TargetX == X, TargetY == Y -> 
+        retract(player_a_target_candy(_, _)),
+        assert(player_a_target_candy(-1, -1))
+    ; true),
+    update_every_cluster(X, Y).
+    
+
 check_for_candy(player_b, X, Y) :-
     type(X, Y, candy),
     retract(candy(X, Y)),
     player_b_score(Score),
     NewScore is Score + 1,
     retract(player_b_score(_)),
-    assert(player_b_score(NewScore)).
+    assert(player_b_score(NewScore)),
+
+    player_b_target_candy(TargetX, TargetY),
+
+    (TargetX == X, TargetY == Y -> 
+        retract(player_b_target_candy(_, _)),
+        assert(player_b_target_candy(-1, -1))
+    ; true),
+    update_every_cluster(X, Y).
 check_for_candy(_, _, _).
+
+update_every_cluster(X, Y) :-
+    player_a_cluster(ClusterA),
+    subtract(ClusterA, [(X, Y)], NewClusterA),
+    update_player_cluster(player_a, NewClusterA),
+    player_b_cluster(ClusterB),
+    subtract(ClusterB, [(X, Y)], NewClusterB),
+    update_player_cluster(player_b, NewClusterB).
 
 % Vérifie si le joueur est sur un fruit
 check_for_fruit(player_a, X, Y) :-
     type(X, Y, fruit),
     retract(fruit(X, Y)),
-    retract(fruit_alive(_)),
-    assert(fruit_alive(0)),
+    retract(fruit_eaten(_)),
+    assert(fruit_eaten(1)),
     player_a_score(Score),
-    NewScore is Score + 10,
+    fruit_value(Value),
+    NewScore is Score + Value,
     retract(player_a_score(_)),
     assert(player_a_score(NewScore)).
 check_for_fruit(player_b, X, Y) :-
     type(X, Y, fruit),
     retract(fruit(X, Y)),
-    retract(fruit_alive(_)),
-    assert(fruit_alive(0)),
+    retract(fruit_eaten(_)),
+    assert(fruit_eaten(1)),
     player_b_score(Score),
-    NewScore is Score + 10,
+    fruit_value(Value),
+    NewScore is Score + Value,
     retract(player_b_score(_)),
     assert(player_b_score(NewScore)).
 check_for_fruit(_, _, _).
@@ -395,44 +488,183 @@ check_for_fruit(_, _, _).
 % Calcule le mouvement de l'IA
 calculate_ai_move(player_a, Move) :-
     player_a_pos(X, Y),
-    calculate_best_move(X, Y, Move).
+    calculate_best_move(X, Y, Move, player_a).
 calculate_ai_move(player_b, Move) :-
     player_b_pos(X, Y),
-    calculate_best_move(X, Y, Move).
+    calculate_best_move(X, Y, Move, player_b).
 
 % Calcule le meilleur mouvement pour l'IA
-calculate_best_move(X, Y, Move) :-
-    fruit(FruitX, FruitY),
-    % On trouve le chemin le plus optimal entre la position actuelle et la position du fruit
-    CurrentNode = (X, Y, 0, 0),
-    a_star([CurrentNode], [], (FruitX, FruitY), Path),
-    write('Path: '), writeln(Path),
-    Move = right,
+calculate_best_move(X, Y, Move, _) :-
+    fruit_eaten(0),
+
+    YUp is Y + 1,
+    calculate_fruit_a_star(X, YUp, UpValue),
+    XRight is X + 1,
+    calculate_fruit_a_star(XRight, Y, RightValue),
+
+    YDown is Y - 1,
+    calculate_fruit_a_star(X, YDown, DownValue),
+
+    XLeft is X - 1,
+    calculate_fruit_a_star(XLeft, Y, LeftValue),
+
+    HighestValue is max(UpValue, max(RightValue, max(DownValue, LeftValue))),
+    best_move(UpValue, RightValue, DownValue, LeftValue, HighestValue, Move),
+    !.
+calculate_best_move(X, Y, Move, Player) :-
+    % On regarde si on a déjà trouvé un cluster de bonbons est vide
+    get_player_cluster(Player, Cluster),
+
+    (Cluster == [] -> 
+        % Trouver un clusteur de bonbons
+        findall((X1, Y1), candy(X1, Y1), CandyList),
+        find_candy_clusters(CandyList, Clusters),
+        % On trouve le plus gros cluster
+        find_biggest_cluster(Clusters, BiggestCluster),
+        update_player_cluster(Player, BiggestCluster)
+    ; BiggestCluster = Cluster),
+
+    write('Cluster: '), write(BiggestCluster), nl,
+
+    get_player_target_candy(Player, CandyX, CandyY),
+    get_other_player_position(Player, OtherX, OtherY),
+
+    write('Checking for target candy: '), write(CandyX), write(' '), writeln(CandyY),
+
+    % On regarde si le bonbon cible est vide
+    (CandyX == -1, CandyY == -1 ->
+        generate_new_target_candy(Player, BiggestCluster)
+    ; true),
+
+    % On regarde si l'autre joueur est sur le bonbon cible
+    (OtherX == CandyX, OtherY == CandyY ->
+        generate_new_target_candy(Player, BiggestCluster)
+    ; true),
+
+    YUp is Y + 1,
+    calculate_candy_a_star(X, YUp, UpValue, Player),
+    XRight is X + 1,
+    calculate_candy_a_star(XRight, Y, RightValue, Player),
+
+    YDown is Y - 1,
+    calculate_candy_a_star(X, YDown, DownValue, Player),
+
+    XLeft is X - 1,
+    calculate_candy_a_star(XLeft, Y, LeftValue, Player),
+
+    HighestValue is max(UpValue, max(RightValue, max(DownValue, LeftValue))),
+    best_move(UpValue, RightValue, DownValue, LeftValue, HighestValue, Move),
     !.
 
+% Génère un nouveau bonbon cible pour l'IA
+generate_new_target_candy(Player, Cluster) :-
+    random_member((TargetX, TargetY), Cluster),
+    update_player_target_candy(Player, TargetX, TargetY).
+
+% Retourne le cluster selon le joueur
+get_player_cluster(player_a, Cluster) :- player_a_cluster(Cluster).
+get_player_cluster(player_b, Cluster) :- player_b_cluster(Cluster).
+
+% Met à jour le cluster du joueur
+update_player_cluster(player_a, Cluster) :- retract(player_a_cluster(_)), assert(player_a_cluster(Cluster)).
+update_player_cluster(player_b, Cluster) :- retract(player_b_cluster(_)), assert(player_b_cluster(Cluster)).
+
+% Retourne le bonbon cible du joueur
+get_player_target_candy(player_a, X, Y) :- player_a_target_candy(X, Y).
+get_player_target_candy(player_b, X, Y) :- player_b_target_candy(X, Y).
+
+% Met à jour le bonbon cible du joueur	
+update_player_target_candy(player_a, X, Y) :- retract(player_a_target_candy(_, _)), assert(player_a_target_candy(X, Y)).
+update_player_target_candy(player_b, X, Y) :- retract(player_b_target_candy(_, _)), assert(player_b_target_candy(X, Y)).
+
+% Retourne la position de l'autre joueur
+get_other_player_position(player_a, X, Y) :- player_b_pos(X, Y).
+get_other_player_position(player_b, X, Y) :- player_a_pos(X, Y).
+
+% Trouve la valeur la plus élevée parmi les valeurs des cellules
+best_move(UpValue, _, _, _, UpValue, Move) :- Move = up.
+best_move(_, RightValue, _, _, RightValue, Move) :- Move = right.
+best_move(_, _, DownValue, _, DownValue, Move) :- Move = down.
+best_move(_, _, _, LeftValue, LeftValue, Move) :- Move = left.
+
+
+% ====== PRÉDICAT POUR L'ALGORITHME A* ======
+calculate_candy_a_star(X, Y, Value, Player) :-
+    type(X, Y, Type),
+    Type \= wall,
+    Type \= player_a,
+    Type \= player_b,
+    path_length_to_candy(X, Y, Length, Player),
+    is_candy_on_path(X, Y, CandyValue),
+    Value is (1 - Length) + CandyValue,
+    !.
+calculate_candy_a_star(_, _, Value, _) :- Value is -1000.
+
+% Trouve une valeur pour une cellule avec l'algorithme A*
+calculate_fruit_a_star(X, Y, Value) :-
+    type(X, Y, Type),
+    Type \= wall,
+    Type \= player_a,
+    Type \= player_b,
+    path_length_to_fruit(X, Y, Length),
+    is_candy_on_path(X, Y, CandyValue),
+    fruit_value(FruitValue),
+    Value is (FruitValue - Length) + CandyValue,
+    !.
+calculate_fruit_a_star(_, _, Value) :- Value is -1000.
+
+is_candy_on_path(X, Y, Value) :-
+    type(X, Y, candy),
+    Value is 1,
+    !.
+is_candy_on_path(_, _, Value) :-
+    Value is 0,
+    !.
+
+% Calcule la longueur du chemin pour atteindre le bonbon
+path_length_to_candy(X, Y, Length, Player) :-
+    get_player_target_candy(Player, CandyX, CandyY),
+    CurrentNode = (X, Y, 0, 0, -1, -1),
+    a_star([CurrentNode], [], (CandyX, CandyY), Visited),
+    find_path(CandyX, CandyY, Visited, Path),
+    length(Path, Length).
+
+% Calcule la longueur du chemin pour atteindre le fruit
+path_length_to_fruit(X, Y, Length) :-
+    fruit(FruitX, FruitY),
+    CurrentNode = (X, Y, 0, 0, -1, -1),
+    a_star([CurrentNode], [], (FruitX, FruitY), Visited),
+    find_path(FruitX, FruitY, Visited, Path),
+    length(Path, Length).
+
+% Algorithm A*
 a_star([CurrentNode|_], Visited, Goal, Path) :-
-    CurrentNode = (X, Y, _, _),
+    CurrentNode = (X, Y, _, _, _, _),
     Goal = (X, Y),
     Path = [CurrentNode|Visited],  % le but est atteint
     !.
 a_star([], _, _, _) :- !.
 a_star([CurrentNode|Rest], Visited, Goal, Path) :-
-    CurrentNode = (X, Y, G, _),
-    findall((X1, Y1, G1, F), (
+    CurrentNode = (X, Y, G, _, _, _),
+    findall((X1, Y1, G1, F, ParentX, ParentY), (
         neighbor(_, X, Y, X1, Y1),
-        \+ type(X1, Y1, wall),  % pas de mur
+        \+ type(X1, Y1, wall), % pas de mur
+        \+ type(X1, Y1, player_a), % pas de joueur a
+        \+ type(X1, Y1, player_b), % pas de joueur b
         \+ member((X1, Y1, _, _), Visited),  % pas déjà visité
         G1 is G + 1,  % incrémenter la distance parcourue
         manhattan_distance(X1, Y1, Goal, H),
-        F is G1 + H  % coût total (f = g + h)
+        F is G1 + H,  % coût total (f = g + h)
+        ParentX is X,
+        ParentY is Y
     ), Neighbors),
     append(Neighbors, Rest, NewRest),
     predsort(compare_f, NewRest, SortedRest),
     a_star(SortedRest, [CurrentNode|Visited], Goal, Path).
 
 % Comparer les coûts totaux F
-compare_f(<, (_, _, _, F1), (_, _, _, F2)) :- F1 < F2.
-compare_f(>, (_, _, _, F1), (_, _, _, F2)) :- F1 >= F2.
+compare_f(<, (_, _, _, F1, _, _), (_, _, _, F2, _, _)) :- F1 < F2.
+compare_f(>, (_, _, _, F1, _, _), (_, _, _, F2, _, _)) :- F1 >= F2.
 
 % Calculer la distance de Manhattan
 manhattan_distance(X1, Y1, (X2, Y2), D) :-
@@ -444,6 +676,50 @@ neighbor(left, X, Y, X1, Y) :- X1 is X - 1.
 neighbor(down, X, Y, X, Y1) :- Y1 is Y - 1.
 neighbor(right, X, Y, X1, Y) :- X1 is X + 1.
 
+% Trouver le chemin exact pour atteindre le fruit
+find_path(-1, -1, _, Path) :-
+    Path = [],
+    !.
+find_path(X, Y, Visited, Path) :-
+    member((X, Y, _, _, ParentX, ParentY), Visited),
+    find_path(ParentX, ParentY, Visited, Path1),
+    Path = [(X, Y)|Path1].
+
+% ====== (FIN)  PRÉDICAT POUR L'ALGORITHME A* ======
+
+% ====== PRÉDICAT POUR LA GESTION DES CLUSTERS DE BONBONS ======
+% Trouve le meilleur cluster de bonbons
+find_candy_clusters([], FinalClusters) :- FinalClusters = [].
+find_candy_clusters([CurrentCandy|Rest], FinalClusters) :-
+    find_cluster_near_candy([CurrentCandy], [], Cluster),
+    % On enlève les bonbons du cluster trouvé	
+    subtract(Rest, Cluster, NewRest),
+    find_candy_clusters(NewRest, Clusters),
+    append([Cluster], Clusters, FinalClusters).
+
+% Trouve un cluster de bonbons près d'un bonbon
+find_cluster_near_candy(Open, Visited, FinalCluster) :-
+    Open = [],
+    FinalCluster = Visited,
+    !.
+find_cluster_near_candy([CurrentCandy|Rest], Visited, FinalCluster) :-
+    CurrentCandy = (X, Y),
+    findall((X1, Y1), (
+        neighbor(_, X, Y, X1, Y1),
+        type(X1, Y1, candy),
+        \+ member((X1, Y1), Visited),
+        \+ member((X1, Y1), Rest)
+    ), Neighbors),
+    append(Neighbors, Rest, NewRest),
+    find_cluster_near_candy(NewRest, [CurrentCandy|Visited], FinalCluster).
+
+% Trouve le cluster le plus gros
+find_biggest_cluster([], BiggestCluster) :- BiggestCluster = [].
+find_biggest_cluster([CurrentCluster|Rest], BiggestCluster) :-
+    length(CurrentCluster, CurrentClusterLength),
+    find_biggest_cluster(Rest, RestBiggestCluster),
+    length(RestBiggestCluster, RestBiggestClusterLength),
+    (CurrentClusterLength > RestBiggestClusterLength -> BiggestCluster = CurrentCluster; BiggestCluster = RestBiggestCluster).
 
 % =============== (FIN) GESTION DE L'IA ==================
 
